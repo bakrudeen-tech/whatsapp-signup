@@ -4,17 +4,59 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WhatsApp Business Signup</title>
+  <title>Qphotostudios - WhatsApp Business Signup</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: 50px auto;
+      padding: 24px;
+      color: #222;
+    }
+
+    button {
+      background: #1877f2;
+      border: 0;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      padding: 12px 20px;
+      font-size: 16px;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin-top: 20px;
+      line-height: 1.5;
+    }
+
+    #sessionInfo {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #f4f4f4;
+      padding: 12px;
+      border-radius: 6px;
+    }
+  </style>
 </head>
+
 <body>
   <h2>Connect WhatsApp Business</h2>
-  <p>Connect your WhatsApp Business account using Meta Embedded Signup.</p>
+  <p>
+    Connect your WhatsApp Business app number using
+    Meta Embedded Signup, if your account is eligible.
+  </p>
 
-  <button id="signupButton" onclick="launchWhatsAppSignup()">
+  <button id="signupButton" type="button"
+          onclick="launchWhatsAppSignup()">
     Connect WhatsApp
   </button>
 
-  <p id="status">Loading Meta SDK...</p>
+  <p id="status" role="status">Loading Meta SDK...</p>
   <pre id="sessionInfo"></pre>
 
   <script>
@@ -23,6 +65,7 @@
 
     const statusEl = document.getElementById("status");
     const sessionEl = document.getElementById("sessionInfo");
+    const signupButton = document.getElementById("signupButton");
 
     window.fbAsyncInit = function () {
       FB.init({
@@ -33,7 +76,7 @@
       });
 
       statusEl.textContent =
-        "Meta SDK loaded. Click Connect WhatsApp to continue.";
+        "Meta SDK loaded. Click Connect WhatsApp to start.";
     };
 
     // Load Facebook JavaScript SDK.
@@ -48,22 +91,30 @@
       firstScript.parentNode.insertBefore(js, firstScript);
     })(document, "script", "facebook-jssdk");
 
-    // Receives the authorization response.
+    // Facebook Login callback.
     function fbLoginCallback(response) {
-      if (response.authResponse && response.authResponse.code) {
+      if (response.authResponse &&
+          response.authResponse.code) {
         statusEl.textContent =
-          "Authorization code received. Backend processing is still required.";
+          "Authorization code received. Server-side processing is required " +
+          "before the integration can be completed.";
 
-        // Do not expose the authorization code or App Secret.
-        // Send the code to a secure backend when one is configured.
+        // IMPORTANT:
+        // Do not put your App Secret or access tokens in this page.
+        // Send the authorization code to a secure backend when available.
+        // No backend is currently configured in this example.
       } else {
         statusEl.textContent =
-          "No authorization code received. Signup may have been cancelled.";
+          "No authorization code received. The flow may have been cancelled " +
+          "or blocked. Check the session event below.";
       }
+
+      signupButton.disabled = false;
     }
 
-    // Receive Embedded Signup session events.
+    // Listen for Meta Embedded Signup session events.
     window.addEventListener("message", function (event) {
+      // Only accept messages from Meta's expected origin.
       if (event.origin !== "https://www.facebook.com") {
         return;
       }
@@ -82,46 +133,43 @@
         return;
       }
 
-      // Show event information for testing.
-      // This does not complete the server-side integration.
-      if (data.event === "FINISH") {
-        statusEl.textContent =
-          "Signup flow finished. Check the session details below.";
+      // Display only non-secret session information for debugging.
+      // Do not display or log authorization codes or access tokens.
+      const eventName = data.event || "UNKNOWN";
+      const sessionData = data.data || {};
 
-        sessionEl.textContent = JSON.stringify(
-          data.data || {},
-          null,
-          2
-        );
-      } else if (data.event === "CANCEL") {
-        statusEl.textContent =
-          "Signup was cancelled. Review the session details.";
+      sessionEl.textContent = JSON.stringify({
+        type: data.type,
+        event: eventName,
+        data: sessionData
+      }, null, 2);
 
-        sessionEl.textContent = JSON.stringify(
-          data.data || {},
-          null,
-          2
-        );
-      } else if (data.event === "ERROR") {
+      if (eventName === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING" ||
+          eventName === "FINISH") {
         statusEl.textContent =
-          "Meta reported an Embedded Signup error.";
-
-        sessionEl.textContent = JSON.stringify(
-          data.data || {},
-          null,
-          2
-        );
+          "Meta reports that the signup flow finished. " +
+          "Backend integration and verification may still be required.";
+      } else if (eventName === "CANCEL") {
+        statusEl.textContent =
+          "Signup was cancelled. Review the session event details.";
+      } else if (eventName === "ERROR") {
+        statusEl.textContent =
+          "Meta reported a signup error. Review the details below.";
+      } else {
+        statusEl.textContent =
+          "Embedded Signup event received: " + eventName;
       }
     });
 
-    // Launch v4 Embedded Signup on button click.
+    // Launch must be called directly from the button click.
     function launchWhatsAppSignup() {
       if (!window.FB) {
         statusEl.textContent =
-          "Meta SDK is not ready. Refresh and try again.";
+          "Meta SDK is not ready. Refresh the page and try again.";
         return;
       }
 
+      signupButton.disabled = true;
       sessionEl.textContent = "";
       statusEl.textContent = "Opening Meta signup...";
 
@@ -130,6 +178,8 @@
         response_type: "code",
         override_default_response_type: true,
         extras: {
+          setup: {},
+          featureType: "whatsapp_business_app_onboarding",
           version: "v4"
         }
       });
