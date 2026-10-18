@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,18 +8,21 @@
 </head>
 <body>
   <h2>Connect WhatsApp Business</h2>
-  <p>This page starts Meta's Embedded Signup flow.</p>
+  <p>Connect your WhatsApp Business account using Meta Embedded Signup.</p>
 
   <button id="signupButton" onclick="launchWhatsAppSignup()">
     Connect WhatsApp
   </button>
 
   <p id="status">Loading Meta SDK...</p>
+  <pre id="sessionInfo"></pre>
 
   <script>
-    // Replace these with your actual Meta app values.
     const APP_ID = "1090822260208465";
     const CONFIG_ID = "4373621359614568";
+
+    const statusEl = document.getElementById("status");
+    const sessionEl = document.getElementById("sessionInfo");
 
     window.fbAsyncInit = function () {
       FB.init({
@@ -28,78 +32,105 @@
         version: "v23.0"
       });
 
-      document.getElementById("status").textContent =
+      statusEl.textContent =
         "Meta SDK loaded. Click Connect WhatsApp to continue.";
     };
 
-    // Load the Facebook JavaScript SDK.
+    // Load Facebook JavaScript SDK.
     (function (d, s, id) {
-      let js;
-      const firstScript = d.getElementsByTagName(s)[0];
-
       if (d.getElementById(id)) return;
 
-      js = d.createElement(s);
+      const js = d.createElement(s);
       js.id = id;
       js.src = "https://connect.facebook.net/en_US/sdk.js";
+
+      const firstScript = d.getElementsByTagName(s)[0];
       firstScript.parentNode.insertBefore(js, firstScript);
     })(document, "script", "facebook-jssdk");
 
-    // Receives the Facebook Login response.
+    // Receives the authorization response.
     function fbLoginCallback(response) {
       if (response.authResponse && response.authResponse.code) {
-        document.getElementById("status").textContent =
-          "Authorization received. A secure backend is needed to complete setup.";
+        statusEl.textContent =
+          "Authorization code received. Backend processing is still required.";
 
-        // Send the authorization code to your server for secure processing.
-        // Do not exchange it in browser code or expose your App Secret.
+        // Do not expose the authorization code or App Secret.
+        // Send the code to a secure backend when one is configured.
       } else {
-        document.getElementById("status").textContent =
-          "Signup was cancelled or authorization was not completed.";
+        statusEl.textContent =
+          "No authorization code received. Signup may have been cancelled.";
       }
     }
 
-    // Listen for Embedded Signup session events.
+    // Receive Embedded Signup session events.
     window.addEventListener("message", function (event) {
-      if (
-        event.origin !== "https://www.facebook.com" &&
-        event.origin !== "https://web.facebook.com"
-      ) {
+      if (event.origin !== "https://www.facebook.com") {
         return;
       }
 
-      try {
-        const data =
-          typeof event.data === "string"
-            ? JSON.parse(event.data)
-            : event.data;
+      let data;
 
-        if (data && data.type === "WA_EMBEDDED_SIGNUP") {
-          // Session information may arrive here.
-          // Process it according to Meta's official implementation guide.
-          console.log("Embedded Signup event received:", data.event);
-        }
+      try {
+        data = typeof event.data === "string"
+          ? JSON.parse(event.data)
+          : event.data;
       } catch (error) {
-        // Ignore unrelated messages.
+        return;
+      }
+
+      if (!data || data.type !== "WA_EMBEDDED_SIGNUP") {
+        return;
+      }
+
+      // Show event information for testing.
+      // This does not complete the server-side integration.
+      if (data.event === "FINISH") {
+        statusEl.textContent =
+          "Signup flow finished. Check the session details below.";
+
+        sessionEl.textContent = JSON.stringify(
+          data.data || {},
+          null,
+          2
+        );
+      } else if (data.event === "CANCEL") {
+        statusEl.textContent =
+          "Signup was cancelled. Review the session details.";
+
+        sessionEl.textContent = JSON.stringify(
+          data.data || {},
+          null,
+          2
+        );
+      } else if (data.event === "ERROR") {
+        statusEl.textContent =
+          "Meta reported an Embedded Signup error.";
+
+        sessionEl.textContent = JSON.stringify(
+          data.data || {},
+          null,
+          2
+        );
       }
     });
 
-    // Launch must be called directly from the user's button click.
+    // Launch v4 Embedded Signup on button click.
     function launchWhatsAppSignup() {
       if (!window.FB) {
-        document.getElementById("status").textContent =
-          "Meta SDK is not ready. Refresh the page and try again.";
+        statusEl.textContent =
+          "Meta SDK is not ready. Refresh and try again.";
         return;
       }
+
+      sessionEl.textContent = "";
+      statusEl.textContent = "Opening Meta signup...";
 
       FB.login(fbLoginCallback, {
         config_id: CONFIG_ID,
         response_type: "code",
         override_default_response_type: true,
         extras: {
-          setup: {},
-          featureType: "whatsapp_business_app_onboarding",
-          sessionInfoVersion: "3"
+          version: "v4"
         }
       });
     }
